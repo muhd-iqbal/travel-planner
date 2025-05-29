@@ -11,6 +11,8 @@ import { ItineraryForm } from './components/ItineraryForm';
 import { BottomNavigation } from './components/BottomNavigation';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { ErrorMessage } from './components/ErrorMessage';
+import { usePWA } from './hooks/usePWA';
+
 
 const TravelPlanner = () => {
   const [darkMode, setDarkMode] = useState(() => {
@@ -25,11 +27,12 @@ const TravelPlanner = () => {
   const [editingItinerary, setEditingItinerary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+  const { isInstallable, isInstalled, isOnline, installApp } = usePWA();
+
   const [tripForm, setTripForm] = useState({
     name: '', destination: '', startDate: '', endDate: '', budget: ''
   });
-  
+
   // Updated itinerary form without time field
   const [itineraryForm, setItineraryForm] = useState({
     title: '', location: '', date: '', description: '', price: '', category: 'activity'
@@ -49,6 +52,22 @@ const TravelPlanner = () => {
       document.documentElement.classList.remove('dark');
     }
   }, [darkMode]);
+
+  // Handle PWA shortcuts
+  useEffect(() => {
+    const pwaAction = sessionStorage.getItem('pwa-action');
+    const pwaPage = sessionStorage.getItem('pwa-page');
+
+    if (pwaAction === 'new-trip') {
+      setShowTripForm(true);
+      sessionStorage.removeItem('pwa-action');
+    }
+
+    if (pwaPage) {
+      setCurrentPage(pwaPage);
+      sessionStorage.removeItem('pwa-page');
+    }
+  }, []);
 
   const loadTrips = async () => {
     try {
@@ -92,11 +111,11 @@ const TravelPlanner = () => {
       setError(null);
       const updatedTrip = await ApiService.updateTrip(editingTrip.id, tripForm);
       setTrips(trips.map(trip => trip.id === editingTrip.id ? updatedTrip : trip));
-      
+
       if (activeTrip && activeTrip.id === editingTrip.id) {
         setActiveTrip(updatedTrip);
       }
-      
+
       setEditingTrip(null);
       setTripForm({ name: '', destination: '', startDate: '', endDate: '', budget: '' });
       setShowTripForm(false);
@@ -115,7 +134,7 @@ const TravelPlanner = () => {
       setError(null);
       await ApiService.deleteTrip(tripId);
       setTrips(trips.filter(trip => trip.id !== tripId));
-      
+
       if (activeTrip && activeTrip.id === tripId) {
         setActiveTrip(null);
         setCurrentPage('dashboard');
@@ -135,12 +154,12 @@ const TravelPlanner = () => {
     try {
       setError(null);
       const newItinerary = await ApiService.createItinerary(activeTrip.id, itineraryForm);
-      
+
       // Refresh the active trip to get updated data
       const updatedTrip = await ApiService.getTrip(activeTrip.id);
       setActiveTrip(updatedTrip);
       setTrips(trips.map(trip => trip.id === activeTrip.id ? updatedTrip : trip));
-      
+
       // Reset form without time field
       setItineraryForm({ title: '', location: '', date: '', description: '', price: '', category: 'activity' });
       setShowItineraryForm(false);
@@ -159,12 +178,12 @@ const TravelPlanner = () => {
     try {
       setError(null);
       await ApiService.updateItinerary(editingItinerary.id, itineraryForm);
-      
+
       // Refresh the active trip to get updated data
       const updatedTrip = await ApiService.getTrip(activeTrip.id);
       setActiveTrip(updatedTrip);
       setTrips(trips.map(trip => trip.id === activeTrip.id ? updatedTrip : trip));
-      
+
       setEditingItinerary(null);
       // Reset form without time field
       setItineraryForm({ title: '', location: '', date: '', description: '', price: '', category: 'activity' });
@@ -183,7 +202,7 @@ const TravelPlanner = () => {
     try {
       setError(null);
       await ApiService.deleteItinerary(itineraryId);
-      
+
       // Refresh the active trip to get updated data
       const updatedTrip = await ApiService.getTrip(activeTrip.id);
       setActiveTrip(updatedTrip);
@@ -247,14 +266,14 @@ const TravelPlanner = () => {
   const themeClasses = darkMode ? 'bg-gray-900 text-white min-h-screen' : 'bg-gray-50 text-gray-900 min-h-screen';
 
   const renderCurrentPage = () => {
-    const baseProps = { 
-      trips, activeTrip, setCurrentPage, setShowTripForm, darkMode, 
-      setActiveTrip: setActiveTripAndRefresh, startEditTrip, deleteTrip 
+    const baseProps = {
+      trips, activeTrip, setCurrentPage, setShowTripForm, darkMode,
+      setActiveTrip: setActiveTripAndRefresh, startEditTrip, deleteTrip
     };
-    const itineraryProps = { 
-      ...baseProps, startEditItinerary, deleteItinerary, setShowItineraryForm 
+    const itineraryProps = {
+      ...baseProps, startEditItinerary, deleteItinerary, setShowItineraryForm
     };
-    
+
     switch (currentPage) {
       case 'dashboard': return <DashboardPage {...baseProps} />;
       case 'trips': return <TripsPage {...baseProps} />;
@@ -262,6 +281,32 @@ const TravelPlanner = () => {
       case 'budget': return <BudgetPage {...baseProps} />;
       default: return <DashboardPage {...baseProps} />;
     }
+  };
+
+  // Add install button to header (optional)
+  const renderInstallButton = () => {
+    if (!isInstallable || isInstalled) return null;
+
+    return (
+      <button
+        onClick={installApp}
+        className={`p-2 rounded-lg transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'}`}
+        title="Install App"
+      >
+        📱
+      </button>
+    );
+  };
+
+  // Add offline indicator
+  const renderOfflineIndicator = () => {
+    if (isOnline) return null;
+
+    return (
+      <div className="fixed top-14 left-4 right-4 bg-yellow-500 text-white px-3 py-2 rounded-lg text-sm z-50">
+        📡 You're offline. Some features may be limited.
+      </div>
+    );
   };
 
   if (loading) {
